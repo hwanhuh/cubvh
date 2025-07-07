@@ -54,6 +54,7 @@ public:
 
     virtual void signed_distance_gpu(uint32_t n_elements, uint32_t mode, const float* positions, float* distances, int64_t* face_id, float* uvw, const Triangle* gpu_triangles, cudaStream_t stream) = 0;
     virtual void unsigned_distance_gpu(uint32_t n_elements, const float* positions, float* distances, int64_t* face_id, float* uvw, const Triangle* gpu_triangles, cudaStream_t stream) = 0;
+    virtual void unsigned_distance_backward_gpu(uint32_t n_elements, const float* grad_dist, const float* positions, const float* distances, const int64_t* face_id, float* grad_positions, const Triangle* triangles_unsorted, cudaStream_t stream) = 0;
     virtual void ray_trace_gpu(uint32_t n_elements, const float* rays_o, const float* rays_d, float* positions, int64_t* face_id, float* depth, const Triangle* gpu_triangles, cudaStream_t stream) = 0;
 
     // KIUI: not supported now.

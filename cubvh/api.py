@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 
@@ -9,6 +8,38 @@ _sdf_mode_to_id = {
     'watertight': 0,
     'raystab': 1,
 }
+
+class UnsignedDistance(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, positions, bvh_impl):
+        
+        prefix = positions.shape[:-1]
+        positions_flat = positions.view(-1, 3)
+        N = positions_flat.shape[0]
+
+        # init output buffers
+        distances = torch.empty(N, dtype=torch.float32, device=positions.device)
+        face_id = torch.empty(N, dtype=torch.int64, device=positions.device)
+        
+        bvh_impl.unsigned_distance(positions_flat, distances, face_id, None)
+
+        ctx.bvh_impl = bvh_impl
+        ctx.save_for_backward(positions_flat, distances, face_id)
+
+        return distances.view(*prefix), face_id.view(*prefix), None
+
+    @staticmethod
+    def backward(ctx, grad_dist, grad_face_id, grad_uvw):
+        
+        bvh_impl = ctx.bvh_impl
+        positions, distances, face_id = ctx.saved_tensors
+        
+        grad_positions = torch.zeros_like(positions)
+
+        bvh_impl.unsigned_distance_backward(grad_dist.contiguous(), positions, distances, face_id, grad_positions)
+
+        return grad_positions.view_as(positions), None
+
 
 class cuBVH():
     def __init__(self, vertices, triangles):
@@ -57,31 +88,20 @@ class cuBVH():
         # positions: torch.Tensor, float, [N, 3]
 
         positions = positions.float().contiguous()
-
         if not positions.is_cuda: positions = positions.cuda()
 
-        prefix = positions.shape[:-1]
-        positions = positions.view(-1, 3)
-
-        N = positions.shape[0]
-
-        # init output buffers
-        distances = torch.empty(N, dtype=torch.float32, device=positions.device)
-        face_id = torch.empty(N, dtype=torch.int64, device=positions.device)
-
         if return_uvw:
+            # Not supported with autograd
+            prefix = positions.shape[:-1]
+            positions_flat = positions.view(-1, 3)
+            N = positions_flat.shape[0]
+            distances = torch.empty(N, dtype=torch.float32, device=positions.device)
+            face_id = torch.empty(N, dtype=torch.int64, device=positions.device)
             uvw = torch.empty(N, 3, dtype=torch.float32, device=positions.device)
-        else:
-            uvw = None
+            self.impl.unsigned_distance(positions_flat, distances, face_id, uvw)
+            return distances.view(*prefix), face_id.view(*prefix), uvw.view(*prefix, 3)
         
-        self.impl.unsigned_distance(positions, distances, face_id, uvw) # [N, 3]
-
-        distances = distances.view(*prefix)
-        face_id = face_id.view(*prefix)
-        if uvw is not None:
-            uvw = uvw.view(*prefix, 3)
-
-        return distances, face_id, uvw
+        return UnsignedDistance.apply(positions, self.impl)
 
     
     def signed_distance(self, positions, return_uvw=False, mode='watertight'):
