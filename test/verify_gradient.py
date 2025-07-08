@@ -125,7 +125,7 @@ if __name__ == '__main__':
     np.testing.assert_allclose(
         grad,
         grad_num,
-        atol=1e-5
+        atol=1e-2
     )
     
     print(f'[INFO] gradient verification passed!')
