@@ -6,4 +6,5 @@ build/
 eigen*/
 output/
 data/
-temp_*
+temp_**.glb
+*.ply
