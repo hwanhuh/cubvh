@@ -8,3 +8,4 @@ output/
 data/
 temp_**.glb
 *.ply
+dist/
